@@ -692,8 +692,8 @@ ip -br -c a
 
 ## 7. Дополнительная информация
 
-![dop-info](../pictures/shema.png)
+![dop-info](/pictures/shema.png)
 
 
 
-![dop-info](../pictures/ip-set.png)
+![dop-info](/pictures/ip-set.png)

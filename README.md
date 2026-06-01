@@ -5,6 +5,7 @@
 5. [Настройка BR-SRV](#5-Настройка-BR-SRV)
 6. [Настройка HQ-CLI](#6-Настройка-HQ-CLI)
 7. [Дополнительная информация](#7-Дополнительная-информация)
+8. [2 Модуль](#8-2-Модуль)
 
 ## 1. Настройкка ISP
 
@@ -693,7 +694,321 @@ ip -br -c a
 ## 7. Дополнительная информация
 
 ![dop-info](/pictures/shema.png)
-
-
-
 ![dop-info](/pictures/ip-set.png)
+
+## 8. 2 Модуль
+
+Часть 1: Настройка Samba DC на BR-SRV
+1.1 Установка необходимых пакетов
+
+```
+
+apt-get update && apt-get install -y task-samba-dc
+
+```
+
+1.2 Очистка предыдущей конфигурации Samba (если была)
+
+```
+
+rm -f /etc/samba/smb.conf
+rm -rf /var/lib/samba
+rm -rf /var/cache/samba
+mkdir -p /var/lib/samba/sysvol
+
+```
+
+1.3 Развёртывание домена
+
+Запустите интерактивное развёртывание:
+
+```
+
+samba-tool domain provision
+```
+При запросе параметров:
+
+```
+    Realm: AU-TEAM.IRPO (подставится автоматически)
+    Domain: AU-TEAM (подставится автоматически)
+    Server Role: dc (нажмите Enter)
+    DNS backend: SAMBA_INTERNAL (нажмите Enter)
+    DNS forwarder IP address: 192.168.100.2 (IP HQ-SRV или другой DNS)
+    Administrator password: введите пароль (минимум 7 символов, буквы верхнего/нижнего регистра, цифры)
+
+```
+1.4 Настройка служб
+
+Включаем и добавляем в автозагрузку службу samba:
+
+```
+
+systemctl enable --now samba
+
+```
+
+Настройка Kerberos:
+
+```
+
+cp /var/lib/samba/private/krb5.conf /etc/krb5.conf
+
+```
+Перезагружаем службу samba:
+
+```
+
+systemctl restart samba
+
+```
+
+1.5 Настройка DNS на BR-SRV
+
+Редактируем resolv.conf для интерфейса:
+
+```
+echo "search au-team.irpo" > /etc/net/ifaces/ens192/resolv.conf
+echo "nameserver 127.0.0.1" >> /etc/net/ifaces/ens192/resolv.conf
+
+```
+Перезагружаем сеть:
+
+```
+
+systemctl restart network
+
+```
+1.6 Проверка работоспособности домена
+
+Просмотр информации о домене:
+
+```
+
+samba-tool domain info 127.0.0.1
+
+```
+
+Проверка SMB-шар:
+
+```
+
+smbclient -L 127.0.0.1 -U administrator
+
+```
+
+Введите пароль администратора. Должны отобразиться шары sysvol и netlogon.
+
+1.7 Проверка DNS
+
+Установка утилиты host (если не установлена):
+
+```
+
+apt-get install -y bind-utils
+
+```
+
+Проверка DNS-записей:
+
+```
+
+host au-team.irpo
+host -t SRV _kerberos._udp.au-team.irpo
+host -t SRV _ldap._tcp.au-team.irpo
+host br-srv.au-team.irpo
+
+```
+1.8 Проверка Kerberos
+
+Получение билета (имя домена в ВЕРХНЕМ регистре):
+
+```
+
+kinit Administrator@AU-TEAM.IRPO
+
+```
+
+Просмотр полученного билета:
+
+```
+
+klist
+
+```
+
+Часть 2: Создание пользователей и группы
+2.1 Создание группы hq
+
+```
+
+samba-tool group add hq
+
+```
+
+Проверка:
+
+```
+
+samba-tool group list
+
+```
+
+2.2 Создание пользователей и добавление в группу
+
+```
+
+for i in {1..5}; do
+  samba-tool user add hquser$i P@ssw0rd
+  samba-tool user setexpiry hquser$i --noexpiry
+  samba-tool group addmembers "hq" hquser$i
+done
+
+```
+Проверка членства в группе:
+
+```
+
+samba-tool group listmembers hq
+
+```
+
+Часть 3: Ввод HQ-CLI в домен
+3.1 Настройка сети на HQ-CLI
+
+Задаём статические параметры адресации с указанием DNS-сервера BR-SRV.
+
+Через графический интерфейс (Настройки сети → Проводное подключение → IPv4):
+
+```
+
+    Метод IPv4: Вручную
+    Адрес: 192.168.200.2
+    Маска: 24
+    Шлюз: 192.168.200.1
+    DNS: 192.168.0.2 (IP адрес BR-SRV)
+
+```
+Проверка разрешения доменного имени:
+
+```
+
+host au-team.irpo
+
+```
+
+3.2 Установка пакетов для ввода в домен
+
+```
+
+apt-get update && apt-get install -y task-auth-ad-sssd
+
+```
+
+3.3 Ввод в домен через Центр Управления Системой
+
+1. Откройте Центр управления системой
+2. Перейдите в раздел Пользователи → Аутентификация
+3. Выберите Active Directory
+4. Введите:
+```
+    Домен: au-team.irpo
+    Имя компьютера: hq-cli
+    Администратор: administrator
+    Пароль: (пароль администратора домена)
+```
+5. Нажмите Применить
+После ввода в домен необходимо перезагрузить машину.
+
+Часть 4: Настройка ограниченного sudo для группы hq
+4.1 Установка libnss-role
+
+```
+
+apt-get install -y libnss-role
+
+```
+
+Проверка, что модуль включён:
+
+```
+
+control libnss-role
+
+```
+
+Ожидаемый вывод: enabled
+
+4.2 Связывание доменной группы с локальной группой wheel
+
+```
+
+roleadd hq wheel
+
+```
+
+Проверка:
+
+```
+
+rolelst
+
+```
+
+Ожидаемый вывод должен содержать строку:
+
+hq:wheel
+
+4.3 Настройка sudoers
+
+Редактируем файл /etc/sudoers:
+
+visudo
+или
+nano /etc/sudoers
+
+Добавляем алиас для разрешённых команд:
+Cmnd_Alias      SHELLCMD = /bin/cat, /bin/grep, /usr/bin/id
+
+Добавляем правило для группы wheel:
+WHEEL_USERS ALL=(ALL:ALL) SHELLCMD
+
+Часть 5: Проверка работы
+5.1 Вход под доменным пользователем
+
+На экране входа HQ-CLI нажмите "Нет в списке?":
+Введите:
+```
+
+    Логин: hquser3 (или любой созданный пользователь)
+    Пароль: P@ssw0rd
+```
+5.2 Проверка разрешённых команд
+
+```
+
+sudo id
+sudo cat /etc/hosts
+sudo grep '127.0.0.1' /etc/hosts
+
+```
+
+Результат: все команды выполняются успешно.
+5.3 Проверка запрещённых команд
+```
+sudo su -
+```
+Результат: отказано в доступе
+
+Возможные проблемы и решения:
+1Ошибка при развёртывании домена
+Убедитесь, что пароль соответствует требованиям сложности
+Проверьте, что hostname настроен корректно
+2HQ-CLI не видит домен
+Проверьте, что DNS указывает на BR-SRV
+Убедитесь в сетевой связности: ping 192.168.0.2
+3Пользователь не может войти
+Проверьте службу sssd: systemctl status sssd
+Проверьте логи: journalctl -u sssd
+4sudo не работает
+Проверьте синтаксис sudoers: visudo -c
+Убедитесь, что libnss-role включён: control libnss-role

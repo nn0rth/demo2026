@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Конфигурация виртуальной сети</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #1a1a1e;
+            color: #e0e0e6;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 950px;
+            background-color: #23232e;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+        }
+
+        /* Навигация вкладок сверху */
+        .tabs-nav {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            border-bottom: 2px solid #323242;
+            padding-bottom: 12px;
+            margin-bottom: 25px;
+        }
+
+        .tab-btn {
+            background-color: #2d2d3d;
+            border: 1px solid #3a3a4f;
+            color: #b0b0bc;
+            padding: 10px 16px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease-in-out;
+        }
+
+        .tab-btn:hover {
+            background-color: #3a3a4f;
+            color: #fff;
+        }
+
+        .tab-btn.active {
+            background-color: #007acc;
+            border-color: #0098ff;
+            color: #fff;
+            box-shadow: 0 0 10px rgba(0, 122, 204, 0.4);
+        }
+
+        /* Контент вкладок */
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        h3 {
+            color: #007acc;
+            margin-top: 0;
+            margin-bottom: 15px;
+            border-left: 4px solid #007acc;
+            padding-left: 10px;
+        }
+
+        /* Текстовый блок с конфигурацией */
+        .config-text {
+            background-color: #16161a;
+            border: 1px solid #2d2d3d;
+            border-radius: 6px;
+            padding: 15px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            color: #39d353; /* Зеленый терминальный цвет текста */
+            margin-bottom: 20px;
+            white-space: pre-wrap; /* Сохраняет переносы строк */
+        }
+
+        .config-text span {
+            color: #8b949e; /* Цвет для комментариев в тексте */
+        }
+
+        /* Контейнер для фото/схем */
+        .image-container {
+            width: 100%;
+            margin-top: 15px;
+            border-radius: 6px;
+            overflow: hidden;
+            border: 1px solid #3a3a4f;
+        }
+
+        .image-container img {
+            width: 100%;
+            display: block;
+            height: auto;
+        }
+
+        /* Заглушка, если фото еще не вставлено */
+        .image-placeholder {
+            background-color: #2d2d3d;
+            color: #71718a;
+            text-align: center;
+            padding: 40px 20px;
+            font-size: 14px;
+            border: 2px dashed #3a3a4f;
+            border-radius: 6px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+
+    <div class="tabs-nav">
+        <button class="tab-btn active" onclick="openTab(event, 'isp')">ISP</button>
+        <button class="tab-btn" onclick="openTab(event, 'br-rtr')">BR-RTR</button>
+        <button class="tab-btn" onclick="openTab(event, 'hq-rtr')">HQ-RTR</button>
+        <button class="tab-btn" onclick="openTab(event, 'hq-srv')">HQ-SRV</button>
+        <button class="tab-btn" onclick="openTab(event, 'br-srv')">BR-SRV</button>
+        <button class="tab-btn" onclick="openTab(event, 'hq-cli')">HQ-CLI</button>
+        <button class="tab-btn" onclick="openTab(event, 'extra')">Дополнительно</button>
+        <button class="tab-btn" onclick="openTab(event, 'module-2')">Модуль 2</button>
+    </div>
+
+    <div id="isp" class="tab-content active">
+        <h3>Параметры ISP</h3>
+        <div class="config-text">
+<span>=========ISP=========</span>
+
+root/toor
+
+<span>-------имя хоста---------</span>
+hostnamectl hostname ISP
+exec bash
+<span>-------настройка ВНЕШНЕГО интерфейса---------</span>
+
+cat /etc/net/ifaces/enp7s1/options
+
+<span>-------настройка ВНУТРЕННИХ интерфейсов---------</span>
+
+mkdir -p /etc/net/ifaces/enp7s{2,3}
+
+echo 'TYPE=eth' | tee /etc/net/ifaces/enp7s{2,3}/options
+
+echo '172.16.1.1/28' > /etc/net/ifaces/enp7s2/ipv4address
+echo '172.16.2.1/28' > /etc/net/ifaces/enp7s3/ipv4address
+
+<span>-------настройка NAT---------</span>
+
+apt-get update && apt-get install nftables -y
+
+<span>-------------nftables.nft-------------</span>
+
+cat << EOF > /etc/nftables/nftables.nft
+#!/usr/sbin/nft -f
+flush ruleset
+table ip nat {
+ chain postrouting {
+ type nat hook postrouting priority 100;
+ oifname "enp7s1" masquerade
+ }
+}
+EOF
+
+cat /etc/nftables/nftables.nft
+
+systemctl enable --now nftables
+
+<span>-------включение маршрутизации---------</span>
+
+sed -i 's/net.ipv4.ip_forward = 0/net.ipv4.ip_forward = 1/' /etc/net/sysctl.conf
+systemctl restart network
+sysctl net.ipv4.ip_forward
+        </div>
+    </div>
+
+    <div id="br-rtr" class="tab-content">
+        <h3>Конфигурация BR-RTR</h3>
+        <div class="config-text">
+<span>=======BR-RTR=======</span>
+
+root/toor
+
+<span>имя хоста---------</span>
+hostnamectl hostname br-rtr.au-team.irpo
+exec bash
+
+<span>NETWORK-----------</span>
+
+mkdir -p /etc/net/ifaces/{enp7s{1,2},gre1}
+echo 'TYPE=eth' | tee /etc/net/ifaces/enp7s{1,2}/options
+
+<span>-------to ISP-------</span>
+
+echo '172.16.2.2/28' > /etc/net/ifaces/enp7s1/ipv4address
+echo 'default via 172.16.2.1' > /etc/net/ifaces/enp7s1/ipv4route
+echo 'nameserver 8.8.8.8' > /etc/net/ifaces/enp7s1/resolv.conf
+
+<span>-------to BR-SRV---</span>
+
+echo '192.168.1.1/28' > /etc/net/ifaces/enp7s2/ipv4address
+
+<span>-------включение маршрутизации---------</span>
+
+sed -i 's/net.ipv4.ip_forward = 0/net.ipv4.ip_forward = 1/' /etc/net/sysctl.conf
+
+<span>-----------GRE----------</span>
+
+cat << EOF > /etc/net/ifaces/gre1/options
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.2.2
+TUNREMOTE=172.16.1.2
+TUNTTL=64
+TUNOPTIONS='ttl 64'
+EOF
+
+cat /etc/net/ifaces/gre1/options
+
+echo "10.10.10.2/30" > /etc/net/ifaces/gre1/ipv4address
+
+systemctl restart network
+ip -br -c a
+
+<span>-------установка необходимого ПО-------</span>
+
+apt-get update && apt-get install sudo tzdata frr nftables -y
+
+<span>-------смена DNS-------------</span>
+
+rm -f /etc/net/ifaces/enp7s1/resolv.conf
+echo $'search au-team.irpo\nnameserver 192.168.100.2' > /etc/net/ifaces/enp7s2/resolv.conf
+
+<span>---------nftables-----------</span>
+
+cat << EOF > /etc/nftables/nftables.nft
+#!/usr/sbin/nft -f
+flush ruleset
+table ip nat {
+chain postrouting {
+type nat hook postrouting priority srcnat;
+oifname "enp7s1" masquerade
+}
+}
+EOF
+
+<span>---------TIMEZONE-----------</span>
+
+timedatectl set-timezone Europe/Moscow (если ошибка то: apt-get install tzdata и повторить команду)
+
+<span>--------настройка net_admin-------------</span>
+
+useradd net_admin
+echo "net_admin:P@ssw0rd" | chpasswd
+usermod -aG wheel net_admin
+echo "WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/net_admin
+su -l net_admin
+sudo id
+
+<span>--------OSPF-----------------</span>
+
+sed -i 's/ospfd=no/ospfd=yes/' /etc/frr/daemons ; grep ospf /etc/frr/daemons
+
+
+cat << 'EOF' > /etc/frr/frr.conf
+
+interface gre1
+ ip ospf area 0
+ ip ospf authentication
+ ip ospf authentication-key P@ssw0rd
+ no ip ospf passive
+exit
+!
+interface enp7s2
+ ip ospf area 0
+exit
+!
+router ospf
+ passive-interface default
+exit
+EOF
+
+
+systemctl restart network
+systemctl enable --now nftables frr
+cat /etc/resolv.conf
+ip r
+
+        </div>
+    </div>
+
+    <div id="hq-rtr" class="tab-content">
+        <h3>Конфигурация HQ-RTR</h3>
+        <div class="config-text">
+<span>=======HQ-RTR=======</span>
+
+root/toor
+
+<span>-------имя хоста---------</span>
+
+hostnamectl hostname hq-rtr.au-team.irpo
+exec bash
+
+<span>---------------NETWORK--------------------</span>
+
+mkdir -p /etc/net/ifaces/{enp7s{1,2},vlan{100,200,999},gre1}
+echo 'TYPE=eth' | tee /etc/net/ifaces/enp7s{1,2}/options
+
+<span>-------to ISP-------</span>
+
+echo '172.16.1.2/28' > /etc/net/ifaces/enp7s1/ipv4address
+echo 'default via 172.16.1.1' > /etc/net/ifaces/enp7s1/ipv4route
+echo 'nameserver 8.8.8.8' > /etc/net/ifaces/enp7s1/resolv.conf
+
+<span>-------настройка VLAN-------------</span>
+
+echo $'100\n200\n999' | xargs -i bash -c 'echo -e "TYPE=vlan\nHOST=enp7s2\nVID={}" > /etc/net/ifaces/vlan{}/options'
+
+cat /etc/net/ifaces/vlan999/options
+
+echo '192.168.100.1/27' > /etc/net/ifaces/vlan100/ipv4address
+echo '192.168.200.1/28' > /etc/net/ifaces/vlan200/ipv4address
+echo '192.168.99.1/29' > /etc/net/ifaces/vlan999/ipv4address
+
+<span>-------включение маршрутизации---------</span>
+
+sed -i 's/net.ipv4.ip_forward = 0/net.ipv4.ip_forward = 1/' /etc/net/sysctl.conf
+
+<span>------------GRE-----------------</span>
+
+
+cat << EOF > /etc/net/ifaces/gre1/options
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.1.2
+TUNREMOTE=172.16.2.2
+TUNOPTIONS='ttl 64'
+EOF
+
+
+cat /etc/net/ifaces/gre1/options
+
+echo "10.10.10.1/30" > /etc/net/ifaces/gre1/ipv4address
+
+systemctl restart network
+
+ip -br -c a
+ping 10.10.10.2 -c 3
+ping zz.ru -c 2
+
+<span>-------установка необходимого ПО-------</span>
+
+apt-get update && apt-get install sudo tzdata frr dnsmasq nftables -y
+
+<span>-------смена DNS-------------</span>
+
+rm -f /etc/net/ifaces/enp7s1/resolv.conf
+echo $'search au-team.irpo\nnameserver 192.168.100.2' > /etc/net/ifaces/vlan100/resolv.conf
+
+<span>----------nftables------------</span>
+
+
+cat << EOF > /etc/nftables/nftables.nft
+#!/usr/sbin/nft -f
+flush ruleset
+table ip nat {
+ chain postrouting {
+  type nat hook postrouting priority srcnat;
+  oifname "enp7s1" masquerade
+ }
+}
+EOF
+
+
+systemctl enable --now nftables
+
+<span>---------TIMEZONE-----------</span>
+
+timedatectl set-timezone Europe/Moscow
+
+<span>настройка net_admin-------------</span>
+
+useradd net_admin
+echo "net_admin:P@ssw0rd" | chpasswd
+usermod -aG wheel net_admin
+echo "WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/net_admin
+su -l net_admin
+sudo id
+
+<span>-----------OSPF-----------------</span>
+
+sed -i 's/ospfd=no/ospfd=yes/' /etc/frr/daemons ; grep ospf /etc/frr/daemons
+
++++
+cat << 'EOF' > /etc/frr/frr.conf
+interface gre
+no ip ospf passive
+exit
+!
+interface gre1
+ ip ospf area 0
+ ip ospf authentication
+ ip ospf authentication-key P@ssw0rd
+ no ip ospf passive
+exit
+!
+interface vlan100
+ ip ospf area 0
+exit
+!
+interface vlan200
+ ip ospf area 0
+exit
+!
+interface vlan999
+ ip ospf area 0
+exit
+!
+router ospf
+ passive-interface default
+exit
+EOF
+
+<span>--------------DHCP-----------------</span>
+
+sed -i 's/AUTO_LOCAL_RESOLVER=yes/AUTO_LOCAL_RESOLVER=no/' /etc/sysconfig/dnsmasq; grep AUTO_LOCAL_RESOLVER /etc/sysconfig/dnsmasq
+
+
+cat << 'EOF' > /etc/dnsmasq.conf
+port=0
+interface=vlan200
+listen-address=192.168.200.1
+dhcp-authoritative
+dhcp-range=interface:vlan200,192.168.200.2,192.168.200.2,255.255.255.240,6h
+dhcp-option=3,192.168.200.1
+dhcp-option=6,192.168.100.2
+leasefile-ro
+EOF
+
+
+systemctl enable --now frr dnsmasq ; ss -lun | grep 67
+
+systemctl restart network
+cat /etc/resolv.conf
+ip r | grep ospf
+        </div>
+    </div>
+
+    <div id="hq-srv" class="tab-content">
+        <h3>Конфигурация HQ-SRV</h3>
+        <div class="config-text">
+<span>=======HQ-SRV=======</span>
+
+root/toor
+
+<span>СТАВИМ ТЕГ VLAN 100 НА ИНТЕРФЕЙС</span>
+
+mkdir -p /etc/net/ifaces/vlan100
+echo -e "TYPE=vlan\nHOST=enp7s1\nVID=100" > /etc/net/ifaces/vlan100/options
+<span>Esli nado vlan999</span>
+mkdir -p /etc/net/ifaces/vlan999
+echo -e "TYPE=vlan\nHOST=enp7s2\nVID=999" > /etc/net/ifaces/vlan999/options
+echo 'TYPE=eth' > /etc/net/ifaces/enp7s2/options
+echo '192.168.99.1/29' > /etc/net/ifaces/enp7s2/ipv4address
+systemctl restart network
+ip -br -c a
+
+<span>------имя хоста/NTP---------</span>
+
+hostnamectl hostname HQ-SRV.au-team.irpo
+exec bash
+timedatectl set-timezone Europe/Moscow
+
+<span><-------настройка интерфейсов-------------</span>
+
+echo 'TYPE=eth' > /etc/net/ifaces/enp7s1/options
+echo '192.168.100.2/27' > /etc/net/ifaces/enp7s1/ipv4address
+echo 'default via 192.168.100.1' > /etc/net/ifaces/enp7s1/ipv4route
+echo 'nameserver 8.8.8.8' > /etc/net/ifaces/enp7s1/resolv.conf
+systemctl restart network
+ping zz.ru -c3
+
+<span>-------настройка sshuser-----------------</span>
+
+useradd -u 2026 sshuser
+echo "sshuser:P@ssw0rd" | chpasswd
+usermod -aG wheel sshuser
+echo "WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/sshuser
+su -l sshuser
+sudo id
+
+<span>-------настройка SSH---------------------</span>
+
+echo "Authorized access only" > /etc/openssh/banner
+echo -e "Port 2026\nMaxAuthTries 2\nAllowUsers sshuser\nBanner /etc/openssh/banner\n" >> /etc/openssh/sshd_config
+systemctl restart sshd
+ss -ltnp | grep sshd
+
+ssh sshuser@127.0.0.1 -p 2026
+
+<span>-------установка необходимого ПО-------</span>
+
+apt-get update && apt-get install bind bind-utils -y
+
+<span>-------смена DNS-------------</span>
+
+echo $'search au-team.irpo\nnameserver 127.0.0.1' > /etc/net/ifaces/enp7s1/resolv.conf
+
+<span>-------BIND9-----------------</span>
+
+rndc-confgen -a -c /etc/bind/rndc.key
+
+
+cat << 'EOF' > /etc/bind/options.conf
+logging { };
+options {
+ listen-on { localnets; 127.0.0.1; };
+ forwarders { 77.88.8.7; 77.88.8.3; };
+ recursion yes;
+ allow-recursion { any; };
+ allow-query { any; };
+ dnssec-validation no;
+
+ directory "/etc/bind/zone";
+ dump-file "/var/run/named/named_dump.db";
+ statistics-file "/var/run/named/named.stats";
+ recursing-file "/var/run/named/named.recursing";
+ secroots-file "/var/run/named/named.secroots";
+ pid-file none;
+};
+zone "au-team.irpo" {
+ type master;
+ file "au-team.irpo";
+};
+zone "168.192.in-addr.arpa" {
+ type master;
+ file "168.192.in-addr.arpa";
+};
+EOF
+
+
+
+cat << 'EOF' > /etc/bind/zone/au-team.irpo
+$TTL 1D
+@ IN SOA au-team.irpo. root.au-team.irpo. (
+     2025020600 ; serial
+     12H        ; refresh
+     1H         ; retry
+     1W         ; expire
+     1H         ; ncache
+)
+@      IN NS  hq-srv.au-team.irpo.
+hq-rtr IN A   192.168.100.1
+hq-srv IN A   192.168.100.2
+hq-cli IN A   192.168.200.2
+br-rtr IN A   192.168.1.1
+br-srv IN A   192.168.1.2
+docker IN A   172.16.1.1
+web    IN A   172.16.2.1
+EOF
+
+
+
+cat << 'EOF' > /etc/bind/zone/168.192.in-addr.arpa
+$TTL 1D
+@ IN SOA au-team.irpo. root.au-team.irpo. (
+     2025020600 ; serial
+     12H        ; refresh
+     1H         ; retry
+     1W         ; expire
+     1H         ; ncache
+)
+IN NS  au-team.irpo.
+1.100  IN PTR hq-rtr.au-team.irpo.
+2.100  IN PTR hq-srv.au-team.irpo.
+2.200  IN PTR hq-cli.au-team.irpo.
+EOF
+
+
+chown :named /etc/bind/zone/au-team.irpo /etc/bind/zone/168.192.in-addr.arpa
+systemctl enable --now bind
+service network restart
+host br-rtr
+host -t PTR 192.168.100.2
+        </div>
+    </div>
+
+    <div id="br-srv" class="tab-content">
+        <h3>Конфигурация BR-SRV</h3>
+        <div class="config-text">
+<span>=======BR-SRV=======</span>
+
+root/toor
+
+<span>-------имя хоста/NTP---------</span>
+
+hostnamectl hostname BR-SRV.au-team.irpo
+exec bash
+timedatectl set-timezone Europe/Moscow
+
+<span>-------настройка интерфейсов-------------</span>
+
+echo 'TYPE=eth' > /etc/net/ifaces/enp7s1/options
+echo '192.168.1.2/26' > /etc/net/ifaces/enp7s1/ipv4address
+echo 'default via 192.168.1.1' > /etc/net/ifaces/enp7s1/ipv4route
+echo $'search au-team.irpo\nnameserver 192.168.100.2' > /etc/net/ifaces/enp7s1/resolv.conf
+systemctl restart network
+ping hq-srv -c 3
+
+<span>-------настройка sshuser-----------------</span>
+
+useradd -u 2026 sshuser
+echo "sshuser:P@ssw0rd" | chpasswd
+usermod -aG wheel sshuser
+echo "WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/sshuser
+su -l sshuser
+sudo id
+
+<span>-------настройка SSH---------------------</span>
+
+echo "Authorized access only" > /etc/openssh/banner
+echo -e "Port 2026\nMaxAuthTries 2\nAllowUsers sshuser\nBanner /etc/openssh/banner\n" >> /etc/openssh/sshd_config
+systemctl restart sshd
+ss -ltnp | grep sshd
+        </div>
+    </div>
+
+    <div id="hq-cli" class="tab-content">
+        <h3>Параметры HQ-CLI</h3>
+        <div class="config-text">
+<span>=======HQ-CLI=======</span>
+
+<span>СТАВИМ ТЕГ VLAN 200 НА ИНТЕРФЕЙС</span>
+
+mkdir -p /etc/net/ifaces/vlan200
+echo -e "TYPE=vlan\nHOST=enp7s1\nVID=200" > /etc/net/ifaces/vlan200/options
+echo '192.168.200.2/28' > /etc/net/ifaces/enp7s1/ipv4address
+echo 'default via 192.168.200.1' > /etc/net/ifaces/enp7s1/ipv4route
+systemctl restart network
+ip -br -c a
+
+<span>-------имя хоста/NTP---------</span>
+
+hostnamectl hostname HQ-CLI.au-team.irpo
+exec bash
+timedatectl set-timezone Europe/Moscow
+ip -br -c a
+        </div>
+    </div>
+
+    <div id="extra" class="tab-content">
+        <h3>Дополнительная информация</h3>
+        <div class="config-text">
+
+        </div>
+        <div class="image-container">
+            <img src="shema.png" alt="Схема сети">
+        </div>
+        <div class="config-text"></div>
+        <div class="image-container">    
+            <img src="ip-set.png" alt="Схема сети">
+        </div>
+    </div>
+
+    <div id="module-2" class="tab-content">
+        <h3>Решение 2 модуля</h3>
+        <div class="config-text">
+<span>Часть 1: Настройка Samba DC на BR-SRV
+1.1 Установка необходимых пакетов</span>
+
+apt-get update && apt-get install -y task-samba-dc
+
+<span>1.2 Очистка предыдущей конфигурации Samba (если была)</span>
+
+rm -f /etc/samba/smb.conf
+rm -rf /var/lib/samba
+rm -rf /var/cache/samba
+mkdir -p /var/lib/samba/sysvol
+
+<span>1.3 Развёртывание домена
+
+Запустите интерактивное развёртывание:</span>
+
+samba-tool domain provision
+
+<span>При запросе параметров:</span>
+
+    Realm: AU-TEAM.IRPO (подставится автоматически)
+    Domain: AU-TEAM (подставится автоматически)
+    Server Role: dc (нажмите Enter)
+    DNS backend: SAMBA_INTERNAL (нажмите Enter)
+    DNS forwarder IP address: 192.168.100.2 (IP HQ-SRV или другой DNS)
+    Administrator password: введите пароль (минимум 7 символов, буквы верхнего/нижнего регистра, цифры)
+
+<span>1.4 Настройка служб
+
+Включаем и добавляем в автозагрузку службу samba:</span>
+
+systemctl enable --now samba
+
+<span>Настройка Kerberos:</span>
+
+cp /var/lib/samba/private/krb5.conf /etc/krb5.conf
+
+<span>Перезагружаем службу samba:</span>
+
+systemctl restart samba
+
+<span>1.5 Настройка DNS на BR-SRV
+
+Редактируем resolv.conf для интерфейса:</span>
+
+echo "search au-team.irpo" > /etc/net/ifaces/ens192/resolv.conf
+echo "nameserver 127.0.0.1" >> /etc/net/ifaces/ens192/resolv.conf
+
+<span>Перезагружаем сеть:</span>
+
+systemctl restart network
+
+<span>1.6 Проверка работоспособности домена
+
+Просмотр информации о домене:</span>
+
+samba-tool domain info 127.0.0.1
+
+<span>Проверка SMB-шар:</span>
+
+smbclient -L 127.0.0.1 -U administrator
+
+<span>Введите пароль администратора. Должны отобразиться шары sysvol и netlogon.
+
+1.7 Проверка DNS
+
+Установка утилиты host (если не установлена):</span>
+
+apt-get install -y bind-utils
+
+<span>Проверка DNS-записей:</span>
+
+host au-team.irpo
+host -t SRV _kerberos._udp.au-team.irpo
+host -t SRV _ldap._tcp.au-team.irpo
+host br-srv.au-team.irpo
+
+<span>1.8 Проверка Kerberos
+
+Получение билета (имя домена в ВЕРХНЕМ регистре):</span>
+
+kinit Administrator@AU-TEAM.IRPO
+
+<span>Просмотр полученного билета:</span>
+
+klist
+
+<span>Часть 2: Создание пользователей и группы
+2.1 Создание группы hq</span>
+
+samba-tool group add hq
+
+<span>Проверка:</span>
+
+samba-tool group list
+
+<span>2.2 Создание пользователей и добавление в группу</span>
+
+for i in {1..5}; do
+  samba-tool user add hquser$i P@ssw0rd
+  samba-tool user setexpiry hquser$i --noexpiry
+  samba-tool group addmembers "hq" hquser$i
+done
+
+<span>Проверка членства в группе:</span>
+
+samba-tool group listmembers hq
+
+<span>Часть 3: Ввод HQ-CLI в домен
+3.1 Настройка сети на HQ-CLI
+
+Задаём статические параметры адресации с указанием DNS-сервера BR-SRV.
+
+Через графический интерфейс (Настройки сети → Проводное подключение → IPv4):</span>
+
+    Метод IPv4: Вручную
+    Адрес: 192.168.200.2
+    Маска: 24
+    Шлюз: 192.168.200.1
+    DNS: 192.168.0.2 (IP адрес BR-SRV)
+
+<span>Проверка разрешения доменного имени:</span>
+
+host au-team.irpo
+
+<span>3.2 Установка пакетов для ввода в домен</span>
+
+apt-get update && apt-get install -y task-auth-ad-sssd
+
+<span>3.3 Ввод в домен через Центр Управления Системой</span>
+
+<span>1. Откройте Центр управления системой
+2. Перейдите в раздел Пользователи → Аутентификация
+3. Выберите Active Directory
+4. Введите:</span>
+
+    Домен: au-team.irpo
+    Имя компьютера: hq-cli
+    Администратор: administrator
+    Пароль: (пароль администратора домена)
+
+5. Нажмите Применить
+После ввода в домен необходимо перезагрузить машину.
+
+<span>Часть 4: Настройка ограниченного sudo для группы hq
+4.1 Установка libnss-role</span>
+
+apt-get install -y libnss-role
+
+<span>Проверка, что модуль включён:</span>
+
+control libnss-role
+
+<span>Ожидаемый вывод: enabled
+
+4.2 Связывание доменной группы с локальной группой wheel</span>
+
+roleadd hq wheel
+
+<span>Проверка:</span>
+
+rolelst
+
+<span>Ожидаемый вывод должен содержать строку:</span>
+
+hq:wheel
+
+<span>4.3 Настройка sudoers
+
+Редактируем файл /etc/sudoers:
+
+visudo
+или
+nano /etc/sudoers
+
+Добавляем алиас для разрешённых команд:
+Cmnd_Alias      SHELLCMD = /bin/cat, /bin/grep, /usr/bin/id
+
+Добавляем правило для группы wheel:
+WHEEL_USERS ALL=(ALL:ALL) SHELLCMD
+
+Часть 5: Проверка работы
+5.1 Вход под доменным пользователем
+
+На экране входа HQ-CLI нажмите "Нет в списке?":
+Введите:
+
+    Логин: hquser3 (или любой созданный пользователь)
+    Пароль: P@ssw0rd
+
+5.2 Проверка разрешённых команд</span>
+
+sudo id
+sudo cat /etc/hosts
+sudo grep '127.0.0.1' /etc/hosts
+
+<span>Результат: все команды выполняются успешно.
+5.3 Проверка запрещённых команд</span>
+
+sudo su -
+
+<span>Результат: отказано в доступе
+
+Возможные проблемы и решения:
+Ошибка при развёртывании домена
+
+    Убедитесь, что пароль соответствует требованиям сложности
+    Проверьте, что hostname настроен корректно
+
+HQ-CLI не видит домен
+
+    Проверьте, что DNS указывает на BR-SRV
+    Убедитесь в сетевой связности: ping 192.168.0.2
+
+Пользователь не может войти
+
+    Проверьте службу sssd: systemctl status sssd
+    Проверьте логи: journalctl -u sssd
+
+sudo не работает
+
+    Проверьте синтаксис sudoers: visudo -c
+    Убедитесь, что libnss-role включён: control libnss-role</span>
+
+        </div>
+    </div>
+
+</div>
+
+<script>
+    function openTab(event, tabId) {
+        // Скрываем все вкладки
+        const tabContents = document.querySelectorAll('.tab-content');
+        tabContents.forEach(content => content.classList.remove('active'));
+
+        // Деактивируем все кнопки
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        tabButtons.forEach(button => button.classList.remove('active'));
+
+        // Активируем нужную вкладку и кнопку
+        document.getElementById(tabId).classList.add('active');
+        event.currentTarget.classList.add('active');
+	}
+	// 1. Автоматическая регистрация Service Worker для обхода заглушки
+    	if ('serviceWorker' in navigator) {
+        	navigator.serviceWorker.register('/sw.js')
+            	    .then(() => console.log('Service Worker зарегистрирован! Заглушка Localtonet успешно обходится.'))
+            	    .catch(err => console.error('Ошибка регистрации воркера:', err));
+    	}
+
+    	// 2. Проверка логина и пароля (из нашего предыдущего шага)
+    	function checkLogin() {
+        	const user = document.getElementById('username').value;
+        	const pass = document.getElementById('password').value;
+
+        	if (user === 'admin' && pass === 'password') {
+            	    document.getElementById('loginBox').style.display = 'none';
+                document.getElementById('mainContainer').style.display = 'block';
+                document.body.style.alignItems = 'flex-start';
+        	} else {
+            	    document.getElementById('errorMsg').style.display = 'block';
+        	}
+    	}
+
+    	// 3. Переключение вкладок
+    	function openTab(event, tabId) {
+        	const tabContents = document.querySelectorAll('.tab-content');
+        	tabContents.forEach(content => content.classList.remove('active'));
+
+        	const tabButtons = document.querySelectorAll('.tab-btn');
+        	tabButtons.forEach(button => button.classList.remove('active'));
+
+        	document.getElementById(tabId).classList.add('active');
+        	event.currentTarget.classList.add('active');
+    	}
+</script>
+
+</body>
+</html>
